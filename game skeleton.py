@@ -13,9 +13,10 @@ font = pygame.font.SysFont("Arial", 24)
 game_over_font = pygame.font.SysFont("Arial", 48)
 
 def reset_game():
-  global player_health, player_score, player_pos, enemy_pos, damage_cooldown, is_game_over
+  global player_health, player_score, player_pos, enemy_pos, damage_cooldown, is_game_over, score_timer
   player_health = 100
   player_score = 0
+  score_timer = 0
   player_pos = [400, 350]
   enemy_pos = [random.randint(100, 700), random.randint(150, 500)]
   damage_cooldown = 0
@@ -91,7 +92,10 @@ while running:
   if damage_cooldown > 0:
     damage_cooldown -= 1
   else:
-    player_score += 1 # score increases when safe
+    score_timer += 1 # score increases when safe
+    if score_timer >= 60: # 1 point per second
+      player_score += 1
+      score_timer = 0
 
   # Check for game over
   if player_health <= 0:
