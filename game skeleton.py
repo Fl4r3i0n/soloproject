@@ -170,9 +170,10 @@ while running:
       combo_multiplier = 1
 
   # collison with ammo box
-  ammo_rect = pygame.Rect(ammo_box_pos[0], ammo_box_pos[1], 20, 20)
+  if ammo_count < 5:
+    ammo_rect = pygame.Rect(ammo_box_pos[0], ammo_box_pos[1], 20, 20)
   if player_rect.colliderect(ammo_rect):
-    ammo_count += 5
+    ammo_count = min(5, ammo_count + 5)
     ammo_box_pos = [random.randint(50, 750), random.randint(150, 550)]
 
   # random powerup spawn and collection logic
@@ -190,7 +191,7 @@ while running:
       if powerup_type == 'life':
         player_health = min(100, player_health + 20)
       elif powerup_type == 'ammo':
-        ammo_count += 5
+        ammo_count = min(5, ammo_count + 5)
       elif powerup_type == 'multiplier':
         active_powerup = 'multiplier'
         powerup_timer = 600 # lasts for 10 seconds
@@ -272,8 +273,9 @@ while running:
   )
 
   # Draw Ammo Box
-  pygame.draw.rect(
-    screen, (0, 255, 128), pygame.Rect(ammo_box_pos[0], ammo_box_pos[1], 20, 20)
+  if ammo_count < 5:
+    pygame.draw.rect(
+      screen, (0, 255, 128), pygame.Rect(ammo_box_pos[0], ammo_box_pos[1], 20, 20)
   )
 
   # Draw Random Powerup
@@ -291,11 +293,11 @@ while running:
   # Change player color based on active powerup
   player_color = (0, 128, 255)  # Default blue
   if active_powerup == 'invincible':
-    player_color = (255, 255, 255) # Yellow for invincible
+    player_color = (255, 255, 255) # White for invincible
   elif active_powerup == 'speed':
-    player_color = (0, 255, 255) # Green for speed
+    player_color = (0, 255, 255) # Cyan for speed
   elif active_powerup == 'multiplier':
-    player_color = (255, 215, 0) # Orange for multiplier
+    player_color = (255, 215, 0) # Gold for multiplier
 
 
   # Draw Player (Blue square)
@@ -322,9 +324,11 @@ while running:
     combo_multiplier * 2 if active_powerup == 'multiplier' else combo_multiplier
   )
 
-  score_text = font.render
-  (f"Score: {player_score}", True, (255, 255, 255)
-   )
+  score_text = font.render(
+    f"Score: {player_score}, (x{effective_mult_display})", 
+    True, 
+    (255, 255, 255),
+    )
   
   ammo_text = font.render(f"Ammo: {ammo_count}/5", True, (0, 255, 128))
   enemies_text = font.render(
