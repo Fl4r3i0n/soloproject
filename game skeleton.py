@@ -75,31 +75,31 @@ while running:
             dx, dy = 1, 0
           projectiles.append([player_pos[0] + 15, player_pos[1] + 15, dx * 8, dy * 8])
 
-  # Handle movement controls (Arrow keys or WASD) and checks if the game is over AND border collision
+  # Only updates game state if not game over
   if not is_game_over:
     current_player_speed = (
-      base_player_speed + 2 if active_powerup == "speed" else base_player_speed
+        base_player_speed + 2 if active_powerup == "speed" else base_player_speed
     )
 
     keys = pygame.key.get_pressed()
     if keys[pygame.K_LEFT] or keys[pygame.K_a]:
       player_pos[0] = max(
           border_thickness, player_pos[0] - current_player_speed
-      )  # Left border
+      )
     if keys[pygame.K_RIGHT] or keys[pygame.K_d]:
       player_pos[0] = min(
           SCREEN_WIDTH - player_size - border_thickness,
           player_pos[0] + current_player_speed,
-      )  # Right border
+      )
     if keys[pygame.K_UP] or keys[pygame.K_w]:
       player_pos[1] = max(
           arena_top + border_thickness, player_pos[1] - current_player_speed
-      )  # Top border (leaves room for HUD)
+      )
     if keys[pygame.K_DOWN] or keys[pygame.K_s]:
       player_pos[1] = min(
           SCREEN_HEIGHT - player_size - border_thickness,
           player_pos[1] + current_player_speed,
-      )  # Bottom border
+      )
 
     # Difficulty scaling
     difficulty_timer += 1
@@ -117,130 +117,108 @@ while running:
         enemies.append([random.randint(100, 700), random.randint(150, 500)])
         pending_enemy_respawns.remove(respawn)
 
-  # Enemy movement (moves slowly towards the player)
-  for enemy in enemies:
-    if enemy[0] < player_pos[0]:
-      enemy[0] += global_enemy_speed
-    elif enemy[0] > player_pos[0]:
-      enemy[0] -= global_enemy_speed
-
-    if enemy[1] < player_pos[1]:
-      enemy[1] += global_enemy_speed
-    elif enemy[1] > player_pos[1]:
-      enemy[1] -= global_enemy_speed
-
-  #Keeps things withinn the arena
-  enemy[0] = max(border_thickness, 
-                 min(SCREEN_WIDTH - enemy_size - border_thickness, enemy[0]))
-
-  enemy[1] = max(arena_top + border_thickness, 
-                 min(SCREEN_HEIGHT - enemy_size - border_thickness, enemy[1]))
-
-  # Projectiles and collisions
-  for proj in projectiles[:]:
-    proj[0] += proj[2]
-    proj[1] += proj[3]
-    proj_rect = pygame.Rect(proj[0], proj[1], 10, 10)
-    hit_enemy = None
+    # Enemy movement and arena clamping
     for enemy in enemies:
-      enemy_rect = pygame.Rect(enemy[0], enemy[1], enemy_size, enemy_size)
-      if proj_rect.colliderect(enemy_rect):
-        hit_enemy = enemy
-        break
-    if hit_enemy:
-      projectiles.remove(proj)
-      enemies.remove(hit_enemy)
-      pending_enemy_respawns.append({'timer': 300}) # 5 second respawn
+      if enemy[0] < player_pos[0]:
+        enemy[0] += global_enemy_speed
+      elif enemy[0] > player_pos[0]:
+        enemy[0] -= global_enemy_speed
 
-  player_rect = pygame.Rect(
-    player_pos[0], player_pos[1], player_size, player_size
+      if enemy[1] < player_pos[1]:
+        enemy[1] += global_enemy_speed
+      elif enemy[1] > player_pos[1]:
+        enemy[1] -= global_enemy_speed
+
+      enemy[0] = max(
+          border_thickness,
+          min(SCREEN_WIDTH - enemy_size - border_thickness, enemy[0]),
+      )
+      enemy[1] = max(
+          arena_top + border_thickness,
+          min(SCREEN_HEIGHT - enemy_size - border_thickness, enemy[1]),
+      )
+
+    # Projectiles and collisions
+    for proj in projectiles[:]:
+      proj[0] += proj[2]
+      proj[1] += proj[3]
+      proj_rect = pygame.Rect(proj[0], proj[1], 10, 10)
+      hit_enemy = None
+      for enemy in enemies:
+        enemy_rect = pygame.Rect(enemy[0], enemy[1], enemy_size, enemy_size)
+        if proj_rect.colliderect(enemy_rect):
+          hit_enemy = enemy
+          break
+      if hit_enemy:
+        projectiles.remove(proj)
+        enemies.remove(hit_enemy)
+        pending_enemy_respawns.append({'timer': 300})
+
+    player_rect = pygame.Rect(
+        player_pos[0], player_pos[1], player_size, player_size
     )
 
-  collided_with_enemy = False
-  for enemy in enemies:
-    enemy_rect = pygame.Rect(enemy[0], enemy[1], enemy_size, enemy_size)
-    if player_rect.colliderect(enemy_rect):
-      collided_with_enemy = True
-      break
+    collided_with_enemy = False
+    for enemy in enemies:
+      enemy_rect = pygame.Rect(enemy[0], enemy[1], enemy_size, enemy_size)
+      if player_rect.colliderect(enemy_rect):
+        collided_with_enemy = True
+        break
 
-  if collided_with_enemy:
-    if active_powerup != 'invincible':
-      player_health = max(0, player_health -1)
-      damage_cooldown = 180 # 3 second window with no score gain
-      combo_multiplier = 1
+    if collided_with_enemy:
+      if active_powerup != 'invincible':
+        player_health = max(0, player_health - 1)
+        damage_cooldown = 180
 
-  # collison with ammo box
-  if ammo_count < 5:
-    ammo_rect = pygame.Rect(ammo_box_pos[0], ammo_box_pos[1], 20, 20)
-  if player_rect.colliderect(ammo_rect):
-    ammo_count = min(5, ammo_count + 5)
-    ammo_box_pos = [random.randint(50, 750), random.randint(150, 550)]
-
-  # random powerup spawn and collection logic
-  if powerup_type is None:
-    powerup_spawn_timer += 1
-    if powerup_spawn_timer >= 600: # spawn a powerup every 10 seconds
-      powerup_type = random.choice(
-        ['life', 'ammo', 'multiplier', 'speed', 'invincible']
-      )
-      powerup_pos = [random.randint(50, 750), random.randint(150, 550)]
-      powerup_spawn_timer = 0
-  else:
-    powerup_rect = pygame.Rect(powerup_pos[0], powerup_pos[1], 25, 25)
-    if player_rect.colliderect(powerup_rect):
-      if powerup_type == 'life':
-        player_health = min(100, player_health + 20)
-      elif powerup_type == 'ammo':
+    # Collision with ammo box
+    if ammo_count < 5:
+      ammo_rect = pygame.Rect(ammo_box_pos[0], ammo_box_pos[1], 20, 20)
+      if player_rect.colliderect(ammo_rect):
         ammo_count = min(5, ammo_count + 5)
-      elif powerup_type == 'multiplier':
-        active_powerup = 'multiplier'
-        powerup_timer = 600 # lasts for 10 seconds
-      elif powerup_type == 'speed':
-        active_powerup = 'speed'
-        powerup_timer = 480 # lasts for 8 seconds
-      elif powerup_type == 'invincible':
-        active_powerup = 'invincible'
-        powerup_timer = 300 # lasts for 5 seconds
-      powerup_type = None
+        ammo_box_pos = [random.randint(50, 750), random.randint(150, 550)]
 
-  if active_powerup:
-    powerup_timer -= 1
-    if powerup_timer <= 0:
-      active_powerup = None
+    # Random powerup spawn and collection logic
+    if powerup_type is None:
+      powerup_spawn_timer += 1
+      if powerup_spawn_timer >= 600:
+        powerup_type = random.choice(
+            ['life', 'ammo', 'multiplier', 'speed', 'invincible']
+        )
+        powerup_pos = [random.randint(50, 750), random.randint(150, 550)]
+        powerup_spawn_timer = 0
+    else:
+      powerup_rect = pygame.Rect(powerup_pos[0], powerup_pos[1], 25, 25)
+      if player_rect.colliderect(powerup_rect):
+        if powerup_type == 'life':
+          player_health = min(100, player_health + 20)
+        elif powerup_type == 'ammo':
+          ammo_count = min(5, ammo_count + 5)
+        elif powerup_type == 'multiplier':
+          combo_multiplier = min(5, combo_multiplier + 1)
+        elif powerup_type == 'speed':
+          active_powerup = 'speed'
+          powerup_timer = 480
+        elif powerup_type == 'invincible':
+          active_powerup = 'invincible'
+          powerup_timer = 300
+        powerup_type = None  # Aligned to clear item regardless of type
 
-  # Manage combo multiplier and score progression
-  closest_distance = min (
-    [
-      math.hypot(player_pos[0] - e[0], player_pos[1] -e[1]) for e in enemies
-    ]
-    if enemies
-    else [999]
+    if active_powerup:
+      powerup_timer -= 1
+      if powerup_timer <= 0:
+        active_powerup = None
 
-  )
-  if closest_distance < 150 and damage_cooldown == 0:
-    combo_timer += 1
-    if combo_timer >= 180:
-      combo_multiplier = min(5, combo_multiplier + 1)
-      combo_timer = 0
-  else:
-    combo_timer = 0
+    # Score progression
+    if damage_cooldown > 0:
+      damage_cooldown -= 1
+    else:
+      score_timer += 1
+      if score_timer >= 60:
+        player_score += 1 * combo_multiplier
+        score_timer = 0
 
-  if damage_cooldown > 0:
-    damage_cooldown -= 1
-  else:
-    score_timer += 1
-    if score_timer >= 60:
-      effective_mult = (
-        combo_multiplier * 2
-        if active_powerup == 'multiplier'
-        else combo_multiplier
-      )
-      player_score += 1 * effective_mult
-      score_timer = 0
-
-  if player_health <= 0:
-    is_game_over = True
-
+    if player_health <= 0:
+      is_game_over = True
 
   # Clear screen (dark grey background)
   screen.fill((30, 30, 30))
@@ -320,13 +298,8 @@ while running:
       f"Health: {player_health}", True, (255, 255, 255)
   )
 
-  effective_mult_display = (
-    combo_multiplier * 2 if active_powerup == 'multiplier' else combo_multiplier
-  )
-
   score_text = font.render(
-    f"Score: {player_score}, (x{effective_mult_display})", 
-    True, 
+    f"Score: {player_score}, (x{combo_multiplier})",True, 
     (255, 255, 255),
     )
   
