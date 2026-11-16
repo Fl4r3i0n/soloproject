@@ -45,8 +45,10 @@ def reset_game():
 
   difficulty_timer = 0
 
+
+if __name__ == "__main__":
 # Start game with variables
-reset_game()
+  reset_game()
 base_player_speed = 5
 player_size = 40
 enemy_size = 30
