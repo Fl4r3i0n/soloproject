@@ -1,0 +1,11 @@
+# Game Window & Loop Settings
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+FPS = 60
+
+# Valid Game State Boundaries
+MIN_HEALTH = 0
+MAX_HEALTH = 100
+MIN_AMMO = 0
+MAX_AMMO = 5
+MAX_SCORE_JUMP = 500
