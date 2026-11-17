@@ -26,3 +26,30 @@ def test_unit_config_limits():
     assert config.MIN_HEALTH == 0
     assert config.MAX_HEALTH == 100
     assert config.MAX_AMMO == 5
+
+# Integration tests (Game State + SQLite Database Logging)
+def test_integration_game_session_database_logging(tmp_path):
+    test_db = tmp_path / "test_game_session.db"
+    database.DB_NAME = str(test_db)
+    database.init_db()
+    
+    game.reset_game()
+    database.log_event("SESSION_START", f"Health={game.player_health}, Score={game.player_score}")
+    
+    # simulate gaining score and losing
+    game.player_score = 45
+    game.player_health = 0
+    game.is_game_over = True
+    database.log_event("GAME_OVER", f"FinalScore={game.player_score}, GameOver={game.is_game_over}")
+    
+    conn = sqlite3.connect(str(test_db))
+    rows = conn.execute("SELECT event_type, details FROM game_logs").fetchall()
+    conn.close()
+    
+    assert len(rows) == 2
+    assert rows[0][0] == "SESSION_START"
+    assert "Health=100" in rows [0][1]
+    assert rows[1][0] == "GAME_OVER"
+    assert "FinalScore=45" in rows [1][1]
+    
+    
