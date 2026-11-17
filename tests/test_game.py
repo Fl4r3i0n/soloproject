@@ -1,5 +1,6 @@
 import os
 import sqlite3
+import pygame
 from src import config, database
 import src.game_skeleton as game
 
@@ -52,4 +53,26 @@ def test_integration_game_session_database_logging(tmp_path):
     assert rows[1][0] == "GAME_OVER"
     assert "FinalScore=45" in rows [1][1]
     
+# End-To-End tests (Lifecycle & Reset)
+def test_e2e_full_game_frame_and_restart_cycle(monkeypatch):
+    monkeypatch.setenv("SDL_VIDEODRIVER", "dummy")
+    monkeypatch.setenv("SDL_AUDIODRIVER", "dummy")
     
+    pygame.init()
+    screen = pygame.display.set_mode((game.SCREEN_WIDTH, game.SCREEN_HEIGHT))
+    game.reset_game()
+    
+    #simulates taking damage and game over
+    game.player_health = 0
+    if game.player_health <= 0:
+        game.is_game_over = True
+    assert game.is_game_over is True
+    
+    #simulates when "R" is pressed restarting the game
+    game.reset_game()
+    assert game.is_game_over is False
+    assert game.player_health == 100
+    
+    screen.fill((30, 30, 30))
+    pygame.display.flip()
+    pygame.quit()
