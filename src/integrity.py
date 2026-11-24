@@ -1,5 +1,5 @@
 try:
-    from src import database
+    from src import config, database
 except ImportError:
     import config
     import database

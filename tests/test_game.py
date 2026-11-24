@@ -34,7 +34,7 @@ def test_unit_reset_game_defaults():
     assert len(game.enemies) == 1
 
 def test_unit_spawn_coordinates_within_arena():
-    game.reset_game()
+    game.reset_game(log_session=False)
     # checks if player spawns in right area
     assert game.player_pos == [400, 350]
     # check if the first enemy spawns in the right bounds
@@ -101,9 +101,8 @@ def test_integration_game_session_database_logging(tmp_path):
     database.DB_NAME = str(test_db)
     database.init_db()
     
-    game.reset_game()
-    database.log_event("SESSION_START", f"Health={game.player_health}, Score={game.player_score}")
-    
+    game.reset_game(log_session=True)
+        
     # simulate gaining score and losing
     game.player_score = 45
     game.player_health = 0
