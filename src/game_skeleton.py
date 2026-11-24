@@ -3,9 +3,17 @@ import sys
 import pygame
 import math
 
+try:
+  from src import config, database
+except ImportError:
+  import config
+  import database
+
 # Initialize Pygame
 pygame.init()
-SCREEN_WIDTH, SCREEN_HEIGHT = 800, 600
+database.init_db()
+
+SCREEN_WIDTH, SCREEN_HEIGHT = config.SCREEN_WIDTH, config.SCREEN_HEIGHT
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 pygame.display.set_caption("Target Game - Security Testbed")
 clock = pygame.time.Clock()
@@ -13,13 +21,13 @@ clock = pygame.time.Clock()
 font = pygame.font.SysFont("Arial", 24)
 game_over_font = pygame.font.SysFont("Arial", 48)
 
-def reset_game():
+def reset_game(log_session=True):
   global player_health, player_score, player_pos, enemies, damage_cooldown, is_game_over, score_timer
   global ammo_count, ammo_box_pos, projectiles, combo_multiplier, combo_timer
   global active_powerup, powerup_timer, powerup_spawn_timer, powerup_pos, powerup_type
   global difficulty_timer, global_enemy_speed, pending_enemy_respawns
 
-  player_health = 100
+  player_health = config.MAX_HEALTH
   player_score = 0
   score_timer = 0
   player_pos = [400, 350]
@@ -31,7 +39,7 @@ def reset_game():
   damage_cooldown = 0
   is_game_over = False
 
-  ammo_count = 0
+  ammo_count = config.MIN_AMMO
   ammo_box_pos = [random.randint(50, 750), random.randint(150, 550)]
   projectiles = []
   combo_multiplier = 1
@@ -44,10 +52,13 @@ def reset_game():
   powerup_type = None
 
   difficulty_timer = 0
+  
+  if log_session:
+    database.log_event("SESSION_START", f"Health={player_health}, Score={player_score}")
 
 
 # Start game with variables
-reset_game()
+reset_game(log_session=False)
 base_player_speed = 5
 player_size = 40
 enemy_size = 30
@@ -56,6 +67,7 @@ arena_top = 120 # keeps playable area below the hud
 
 # Main Game Loop
 if __name__ == "__main__":
+  database.log_event("SESSION_START", f"Health={player_health}, Score={player_score}")
   running = True
   while running:
     for event in pygame.event.get():
@@ -173,10 +185,10 @@ if __name__ == "__main__":
           damage_cooldown = 180
 
       # Collision with ammo box
-      if ammo_count < 5:
+      if ammo_count < config.MAX_AMMO:
         ammo_rect = pygame.Rect(ammo_box_pos[0], ammo_box_pos[1], 20, 20)
         if player_rect.colliderect(ammo_rect):
-          ammo_count = min(5, ammo_count + 5)
+          ammo_count = min(config.MAX_AMMO, ammo_count + 5)
           ammo_box_pos = [random.randint(50, 750), random.randint(150, 550)]
 
       # Random powerup spawn and collection logic
@@ -192,9 +204,9 @@ if __name__ == "__main__":
         powerup_rect = pygame.Rect(powerup_pos[0], powerup_pos[1], 25, 25)
         if player_rect.colliderect(powerup_rect):
           if powerup_type == 'life':
-            player_health = min(100, player_health + 20)
+            player_health = min(config.MAX_HEALTH, player_health + 20)
           elif powerup_type == 'ammo':
-            ammo_count = min(5, ammo_count + 5)
+            ammo_count = min(config.MAX_AMMO, ammo_count + 5)
           elif powerup_type == 'multiplier':
             combo_multiplier = min(5, combo_multiplier + 1)
           elif powerup_type == 'speed':
@@ -219,8 +231,9 @@ if __name__ == "__main__":
           player_score += 1 * combo_multiplier
           score_timer = 0
 
-      if player_health <= 0:
+      if player_health <= config.MIN_HEALTH and not is_game_over:
         is_game_over = True
+        database.log_event("GAME_OVER", f"FinalScore={player_score}, GameOver={is_game_over}")
 
     # Clear screen (dark grey background)
     screen.fill((30, 30, 30))
@@ -253,7 +266,7 @@ if __name__ == "__main__":
     )
 
     # Draw Ammo Box
-    if ammo_count < 5:
+    if ammo_count < config.MAX_AMMO:
       pygame.draw.rect(
         screen, (0, 255, 128), pygame.Rect(ammo_box_pos[0], ammo_box_pos[1], 20, 20)
     )
@@ -305,7 +318,7 @@ if __name__ == "__main__":
       (255, 255, 255),
       )
     
-    ammo_text = font.render(f"Ammo: {ammo_count}/5", True, (0, 255, 128))
+    ammo_text = font.render(f"Ammo: {ammo_count}/{config.MAX_AMMO}", True, (0, 255, 128))
     enemies_text = font.render(
       f"Enemies: {len(enemies)} (Spd: {global_enemy_speed})", True, (255, 100, 100)
     )

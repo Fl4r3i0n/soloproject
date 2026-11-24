@@ -1,5 +1,13 @@
+try:
+    from src import database
+except ImportError:
+    import config
+    import database
 class Guard:
-    def __init__(self):
+    def __init__(self, log_to_db=True):
+        self.log_to_db = log_to_db
+        if self.log_to_db:
+            database.init_db()
         self.reset()
         
     def reset(self):
@@ -11,6 +19,8 @@ class Guard:
         if code not in self.flags:
             self.flags.add(code)
             print(f"[DETECTED] {code}: {msg}")
+            if self.log_to_db:
+                database.log_event(f"CHEAT_{code}", str(msg))
     
     def check(self, g):
         if g["is_game_over"]:
@@ -20,9 +30,9 @@ class Guard:
         x, y = g["player_pos"]
         
         # Value bounds
-        if not 0 <= g["player_health"] <= 100:
+        if not config.MIN_HEALTH <= g["player_health"] <= config.MAX_HEALTH:
             self.flag("HEALTH_RANGE", g["player_health"])
-        if not 0 <= g["ammo_count"] <= 5:
+        if not config.MIN_AMMO <= g["ammo_count"] <= config.MAX_AMMO:
             self.flag("AMMO_RANGE", g["ammo_count"])
         if not 1 <= g["combo_multiplier"] <= 5:
             self.flag("MULTIPLIER_RANGE", g["combo_multiplier"])
@@ -48,28 +58,31 @@ class Guard:
             # Teleport / speed: per-frame movement limit (max 7 per axis)
             if abs(x - p["x"]) > 7 or abs(y - p["y"]) > 7:
                 self.flag("TELEPORT_OR_SPEED", (x - p["x"], y - p["y"]))
-            # Health should only rise due to a pickup
+            # Health may only rise via a life pickup
             picked_life = p["powerup_type"] == "life" and g["powerup_type"] is None
             if g["player_health"] > p["health"] and not picked_life:
                 self.flag("HEALTH_UNEARNED", "rose without pickup")
-            # Ammo only rises via pickup
-            if g["ammo_count"] > p["ammo"] and p["powerup_type"] != "ammo" and p["ammo"] >= 5:
+            # Ammo may only rise via ammo box or ammo powerup pickup
+            picked_ammo_box = g["ammo_box_pos"] != p["ammo_box_pos"]
+            picked_ammo_powerup = p["powerup_type"] == "ammo" and g["powerup_type"] is None
+            if g["ammo_count"] > p["ammo"] and not (picked_ammo_box or picked_ammo_powerup):
                 self.flag("AMMO_UNEARNED", "rose without pickup")
-            # Multiplier should only rise by 1 with a multiplier pickup
+            # Multiplier may only rise by 1 via a multiplier pickup
             picked_mult = p["powerup_type"] == "multiplier" and g["powerup_type"] is None
             if g["combo_multiplier"] > p["multiplier"] and (
                 not picked_mult or g["combo_multiplier"] - p["multiplier"] > 1
             ):
                 self.flag("MULTIPLIER_UNEARNED", f"{p['multiplier']} -> {g['combo_multiplier']}")
-                # powerups only active by collecting one
-                if g["active_powerup"] and not p["active"] and p["powerup_type"] not in ("speed, invincible"):
-                    self.flag("POWERUP_UNEARNED", g["active_powerup"])
+            # Powerup may only be activated by collecting one
+            if g["active_powerup"] and not p["active"] and p["powerup_type"] not in ("speed", "invincible"):
+                self.flag("POWERUP_UNEARNED", g["active_powerup"])
         
         self.prev = {
             "x": x,
             "y": y,
             "health": g["player_health"],
             "ammo": g["ammo_count"],
+            "ammo_box_pos": list(g["ammo_box_pos"]),
             "multiplier": g["combo_multiplier"],
             "powerup_type": g["powerup_type"],
             "active": g["active_powerup"],
