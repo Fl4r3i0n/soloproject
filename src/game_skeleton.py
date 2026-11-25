@@ -4,14 +4,18 @@ import pygame
 import math
 
 try:
-  from src import config, database
+  from src import config, database, integrity, mock_hacks
 except ImportError:
   import config
   import database
+  import database
+  import integrity
+  import mock_hacks
 
 # Initialize Pygame
 pygame.init()
 database.init_db()
+guard = integrity.Guard(log_to_db=True)
 
 SCREEN_WIDTH, SCREEN_HEIGHT = config.SCREEN_WIDTH, config.SCREEN_HEIGHT
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
@@ -53,6 +57,9 @@ def reset_game(log_session=True):
 
   difficulty_timer = 0
   
+  if "guard" in globals():
+    guard.reset()
+  
   if log_session:
     database.log_event("SESSION_START", f"Health={player_health}, Score={player_score}")
 
@@ -71,6 +78,7 @@ if __name__ == "__main__":
   running = True
   while running:
     for event in pygame.event.get():
+      mock_hacks.handle_event(event)
       if event.type == pygame.QUIT:
         running = False
       if event.type ==pygame.KEYDOWN:
@@ -346,6 +354,9 @@ if __name__ == "__main__":
         )
       screen.blit(game_over_surf, (300, 240))
       screen.blit(restart_surf, (320, 300))
+      
+    mock_hacks.apply(globals())
+    guard.check(globals())
 
     pygame.display.flip()
     clock.tick(60)

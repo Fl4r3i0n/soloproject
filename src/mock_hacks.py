@@ -6,7 +6,7 @@ KEYMAP = {
     pygame.K_F2: "infinite_ammo",
     pygame.K_F3: "score_inject",
     pygame.K_F4: "speed_hack",
-    pygame.K_F5: "Teleport",
+    pygame.K_F5: "teleport",
     pygame.K_F6: "max_multiplier",
     pygame.K_F7: "kill_enemies",
     pygame.K_F8: "freeze_enemies",
