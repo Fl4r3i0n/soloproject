@@ -101,6 +101,7 @@ def test_integration_game_session_database_logging(tmp_path):
     database.DB_NAME = str(test_db)
     database.init_db()
     
+    # reset_game(log_session=True) automatically logs SESSION_START
     game.reset_game(log_session=True)
         
     # simulate gaining score and losing
@@ -118,6 +119,54 @@ def test_integration_game_session_database_logging(tmp_path):
     assert "Health=100" in rows [0][1]
     assert rows[1][0] == "GAME_OVER"
     assert "FinalScore=45" in rows [1][1]
+    
+def test_integration_mock_hacks_detected_and_logged(tmp_path):
+    test_db = tmp_path / "test_cheat_logs.db"
+    database.DB_NAME = str(test_db)
+        
+    guard = integrity.Guard(log_to_db=True)
+    state = _make_clean_state()
+    state["player_health"] = 60
+    guard.check(state)
+        
+    mock_hacks.ACTIVE.clear()
+    mock_hacks.ACTIVE.update({
+        "godmode",
+        "infinite_ammo",
+        "score_inject",
+        "speed_hack",
+        "teleport",
+        "max_multiplier",
+        "kill_enemies",
+        "freeze_enemies",
+        "powerup_timer_abuse",
+    })
+    mock_hacks.apply(state)
+    guard.check(state)
+    mock_hacks.ACTIVE.clear()
+        
+    expected_flags = {
+        "HEALTH_UNEARNED",
+        "AMMO_UNEARNED",
+        "SCORE_IMPOSSIBLE",
+        "SPEED_CONST",
+        "TELEPORT_OR_SPEED",
+        "OUT_OF_BOUNDS",
+        "MULTIPLIER_UNEARNED",
+        "NO_ENEMIES",
+        "ENEMY_SPEED",
+        "POWERUP_TIMER",
+    }
+    assert expected_flags.issubset(guard.flags)
+        
+    conn = sqlite3.connect(str(test_db))
+    logged_events = {
+        row[0] for row in conn.execute("SELECT event_type FROM game_logs").fetchall()
+    }
+    conn.close()
+        
+    for code in expected_flags:
+        assert f"CHEAT_{code}" in logged_events
     
 # End-To-End tests (Lifecycle & Reset)
 def test_e2e_full_game_frame_and_restart_cycle(monkeypatch):
