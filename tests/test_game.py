@@ -169,24 +169,37 @@ def test_integration_mock_hacks_detected_and_logged(tmp_path):
         assert f"CHEAT_{code}" in logged_events
     
 # End-To-End tests (Lifecycle & Reset)
-def test_e2e_full_game_frame_and_restart_cycle(monkeypatch):
+def test_e2e_full_game_frame_and_restart_cycle(monkeypatch, tmp_path):
     monkeypatch.setenv("SDL_VIDEODRIVER", "dummy")
     monkeypatch.setenv("SDL_AUDIODRIVER", "dummy")
+    database.DB_NAME = str(tmp_path / "test_e2e.db")
+    database.init_db()
     
     pygame.init()
     screen = pygame.display.set_mode((game.SCREEN_WIDTH, game.SCREEN_HEIGHT))
-    game.reset_game()
+    guard = integrity.Guard(log_to_db=True)
+    game.reset_game(log_session=True)
+    
+    guard.check(vars(game))
+    assert len(guard.flags) == 0
+    
+    mock_hacks.ACTIVE.add("speed_hack")
+    mock_hacks.apply(vars(game))
+    guard.check(vars(game))
+    mock_hacks.ACTIVE.clear()
+    assert "SPEED_CONST" in guard.flags
     
     #simulates taking damage and game over
     game.player_health = 0
-    if game.player_health <= 0:
-        game.is_game_over = True
-    assert game.is_game_over is True
+    game.is_game_over = True
+    database.log_event("GAME_OVER", f"FinalScore={game.player_score}, GameOver=True")
     
     #simulates when "R" is pressed restarting the game
-    game.reset_game()
+    game.reset_game(log_session=True)
+    guard.reset()
     assert game.is_game_over is False
     assert game.player_health == 100
+    assert len(guard.flags) == 0
     
     screen.fill((30, 30, 30))
     pygame.display.flip()
