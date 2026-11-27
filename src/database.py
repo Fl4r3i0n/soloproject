@@ -26,6 +26,5 @@ def log_event(event_type, details):
     conn.commit()
     conn.close()
 
-if __name__ == "__main__":
     init_db()
     print("Database initialized.")

@@ -25,56 +25,62 @@ class Guard:
     def check(self, g):
         if g["is_game_over"]:
             return
+        
         self.ticks += 1
-        p = self.prev
         x, y = g["player_pos"]
         
-        # Value bounds
-        if not config.MIN_HEALTH <= g["player_health"] <= config.MAX_HEALTH:
+        # 1. Check static value limits
+        if g["player_health"] < config.MIN_HEALTH or g["player_health"] > config.MAX_HEALTH:
             self.flag("HEALTH_RANGE", g["player_health"])
-        if not config.MIN_AMMO <= g["ammo_count"] <= config.MAX_AMMO:
+
+        if g["ammo_count"] < config.MIN_AMMO or g["ammo_count"] > config.MAX_AMMO:
             self.flag("AMMO_RANGE", g["ammo_count"])
-        if not 1 <= g["combo_multiplier"] <= 5:
+
+        if g["combo_multiplier"] < 1 or g["combo_multiplier"] > 5:
             self.flag("MULTIPLIER_RANGE", g["combo_multiplier"])
+
         if g["powerup_timer"] > 480:
             self.flag("POWERUP_TIMER", g["powerup_timer"])
+
         if g["base_player_speed"] != 5:
             self.flag("SPEED_CONST", g["base_player_speed"])
-        if not 2 <= g["global_enemy_speed"] <= 10:
+
+        if g["global_enemy_speed"] < 2 or g["global_enemy_speed"] > 10:
             self.flag("ENEMY_SPEED", g["global_enemy_speed"])
+
         if len(g["enemies"]) + len(g["pending_enemy_respawns"]) < 1:
-            self.flag("NO_ENEMIES", "enemy set emptied")
+            self.flag("NO_ENEMIES", "all enemies removed")
         
+        # 2. Check arena boundaries and score ceiling
+        if x < 10 or x > 750 or y < 130 or y > 550:
+            self.flag("OUT_OF_BOUNDS", (x, y))
+            
         # Score can never exceed the maximum earnable by time alive
         max_score = (self.ticks // 60 + 1) * 5
         if g["player_score"] > max_score:
             self.flag("SCORE_IMPOSSIBLE", f"{g['player_score']} > {max_score}")
             
-        # Position bounds
-        if not (10 <= x <= 750 and 130 <= y <= 550):
-            self.flag("OUT_OF_BOUNDS", (x, y))
-        
-        if p:
-            # Teleport / speed: per-frame movement limit (max 7 per axis)
-            if abs(x - p["x"]) > 7 or abs(y - p["y"]) > 7:
-                self.flag("TELEPORT_OR_SPEED", (x - p["x"], y - p["y"]))
-            # Health may only rise via a life pickup
-            picked_life = p["powerup_type"] == "life" and g["powerup_type"] is None
-            if g["player_health"] > p["health"] and not picked_life:
-                self.flag("HEALTH_UNEARNED", "rose without pickup")
-            # Ammo may only rise via ammo box or ammo powerup pickup
-            picked_ammo_box = g["ammo_box_pos"] != p["ammo_box_pos"]
-            picked_ammo_powerup = p["powerup_type"] == "ammo" and g["powerup_type"] is None
-            if g["ammo_count"] > p["ammo"] and not (picked_ammo_box or picked_ammo_powerup):
-                self.flag("AMMO_UNEARNED", "rose without pickup")
-            # Multiplier may only rise by 1 via a multiplier pickup
-            picked_mult = p["powerup_type"] == "multiplier" and g["powerup_type"] is None
-            if g["combo_multiplier"] > p["multiplier"] and (
-                not picked_mult or g["combo_multiplier"] - p["multiplier"] > 1
-            ):
-                self.flag("MULTIPLIER_UNEARNED", f"{p['multiplier']} -> {g['combo_multiplier']}")
-            # Powerup may only be activated by collecting one
-            if g["active_powerup"] and not p["active"] and p["powerup_type"] not in ("speed", "invincible"):
+        # 3. Compare current frame against previous frame
+        if self.prev is not None:
+            dx = abs(x - self.prev["x"])
+            dy = abs(y - self.prev["y"])
+            if dx > 7 or dy > 7:
+                self.flag("TELEPORT_OR_SPEED", (dx, dy))
+
+            got_life = self.prev["powerup_type"] == "life" and g["powerup_type"] is None
+            if g["player_health"] > self.prev["health"] and not got_life:
+                self.flag("HEALTH_UNEARNED", "health increased without life pickup")
+
+            got_ammo_box = g["ammo_box_pos"] != self.prev["ammo_box_pos"]
+            got_ammo_powerup = self.prev["powerup_type"] == "ammo" and g["powerup_type"] is None
+            if g["ammo_count"] > self.prev["ammo"] and not (got_ammo_box or got_ammo_powerup):
+                self.flag("AMMO_UNEARNED", "ammo increased without pickup")
+
+            got_mult = self.prev["powerup_type"] == "multiplier" and g["powerup_type"] is None
+            if g["combo_multiplier"] > self.prev["multiplier"] and not got_mult:
+                self.flag("MULTIPLIER_UNEARNED", "multiplier jumped without pickup")
+
+            if g["active_powerup"] and not self.prev["active"] and self.prev["powerup_type"] not in ("speed", "invincible"):
                 self.flag("POWERUP_UNEARNED", g["active_powerup"])
         
         self.prev = {
